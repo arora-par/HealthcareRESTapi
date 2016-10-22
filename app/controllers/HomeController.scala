@@ -63,15 +63,11 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
   // This function allows GET semantics on all content schema types, including the schema themselves
   def get(schema:String, id: String) = Action { request =>
 
-
+    // TODO - change as per this:
     // 1. compare cached etag and request headers. If match found, that would be the fastest 204.
-
     // 2. if etag not found in cache, but is present in headers. fetch item from redis, generate hash and compare.
     // Still a chance for saving bandwidth by returning just 204 and no data.
-
     // 3. last resort is: return full data with 200 and etag value for future use.
-
-
 
 
     val jsonData = redis.get(s"${schema}_$id")
@@ -86,11 +82,8 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
           cache.set(s"etag_${schema}_$id", etagStr)
           etagStr
         }
-
-
         println(s"form headers: ${request.headers.toSimpleMap("If-None-Match")}")
         println(s"from cache/generated: $etag")
-
         if(request.headers.toSimpleMap("If-None-Match").equals(etag)) {
           NotModified
         } else {
@@ -182,7 +175,13 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
                                 val g = s"${(q.value("schema").as[JsString]).value}_${(q.value("id").as[JsString]).value}"
                                 redis.set(g, validJson.toString()) match {
                                   case false => println("Errors: merged json could not be saved" ); FailedDependency
-                                  case _ => Ok("merge/patch successful")
+                                  case _ =>
+                                    // TODO - test this
+                                    val sha: MessageDigest = MessageDigest.getInstance("SHA-1")
+                                    val keyBytes = sha.digest(g.toCharArray.map(_.toByte))
+                                    val etagStr = keyBytes.toString()
+                                    cache.set(s"etag_${schema}_${s1.value}", etagStr)
+                                    Ok("merge/patch successful").withHeaders(ETAG -> etagStr)
                                 }
                               case _ => FailedDependency("Merged map could not be parsed as a Json Object")
                             }
@@ -213,9 +212,9 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
         val mMerged = (mNew -- commonKeys) ++ (mOld -- commonKeys) ++ commonValuesMap
         JsObject(mMerged)
       case _ => qNew
-
     }
-    case _ => newVal
+    case qArrNew:JsArray => ??? // uncommon + merged common
+    case _ => newVal  // TODO - test what could come here and see if it needs to shout an error
   }
 
   def index = Action {
