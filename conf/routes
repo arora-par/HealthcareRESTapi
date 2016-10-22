@@ -14,7 +14,7 @@ GET     /assets/*file               controllers.Assets.versioned(path="/public",
 
 
 # TODO - do not publish /plan/all
-GET         /plan/all                   controllers.HomeController.getAllPlans
-GET         /plan/:id                   controllers.HomeController.getPlanDetails(id: Long)
-POST        /plan                       controllers.HomeController.createPlan
-PATCH       /plan                       controllers.HomeController.updatePlan
+GET         /plan/all                      controllers.HomeController.getAllPlans
+GET         /:schema/:id                   controllers.HomeController.get(schema:String, id: String)
+POST        /:schema                       controllers.HomeController.create(schema: String)
+PATCH       /:schema                       controllers.HomeController.mergeUpdate(schema: String)
