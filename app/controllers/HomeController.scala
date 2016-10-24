@@ -17,7 +17,7 @@ import scala.collection.mutable
  * application's home page.
  */
 
-//TODO - 1. The Supported Operations Should Include get, post , put, merge, and delete.
+//TODO - 1. The Supported Operations Should Include get, post , put, merge, and (cascaded) delete.
 
 // DONE  - TODO - 2 .If you have implemented the crud operations by specifying different URIs for post, get, put, patch, and delete then you also need to rework the URI signatures. The URI signature should be of the following forms:
 ///{plans}
@@ -29,11 +29,11 @@ import scala.collection.mutable
 //TODO - 4. The way to uniquely identify an object is through the use of _id or id and not using planId. The latter won't scale when your system needs to support multiple or many objects.
 // All nested objects must also have an id.
 
+// Done - TODO - 5. If you have not demonstrated the use of the Etag or if match headers, you should also do that
 
-//TODO - 5. If you have not demonstrated the use of the Etag or if match headers, you should also do that
-// TODO - 6. Ideally, the schema should not be read from the file system but rather from the data store
+// Done - TODO - 6. Ideally, the schema should not be read from the file system but rather from the data store
 
-// TODO - 7. Security - Bearer Token
+// TODO - 7. Security - Bearer Token - user, organization, role, Time to Live,
 
 // TODO -   implement dependency injection. move Redis interaction to dependency.
 // TODO -  configure db url via configuration file
@@ -63,31 +63,29 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
   // This function allows GET semantics on all content schema types, including the schema themselves
   def get(schema:String, id: String) = Action { request =>
 
-    // TODO - change as per this:
+    // CONSIDER - changing as per this for best performance:
     // 1. compare cached etag and request headers. If match found, that would be the fastest 204.
     // 2. if etag not found in cache, but is present in headers. fetch item from redis, generate hash and compare.
     // Still a chance for saving bandwidth by returning just 204 and no data.
     // 3. last resort is: return full data with 200 and etag value for future use.
 
-
     val jsonData = redis.get(s"${schema}_$id")
     jsonData match {
       case None => NoContent
       case Some(g) =>
-        // find Etag in cache. If not found, generate it using the hash of the contents
+
         val etag: String = cache.getOrElse[String](s"etag_${schema}_$id") {
+          val startTime = System.currentTimeMillis()
           val sha: MessageDigest = MessageDigest.getInstance("SHA-1")
           val keyBytes = sha.digest(g.toCharArray.map(_.toByte))
           val etagStr = keyBytes.toString()
+          println(s"time for hashing: ${System.currentTimeMillis() - startTime}")
           cache.set(s"etag_${schema}_$id", etagStr)
           etagStr
         }
-        println(s"form headers: ${request.headers.toSimpleMap("If-None-Match")}")
-        println(s"from cache/generated: $etag")
-        if(request.headers.toSimpleMap("If-None-Match").equals(etag)) {
-          NotModified
-        } else {
-          Ok(g).withHeaders(ETAG -> etag)
+        request.headers.toSimpleMap.get("If-None-Match") match {
+          case Some(g1) if g1 == etag => NotModified
+          case _ => Ok(g).withHeaders(ETAG -> etag)
         }
     }
   }
@@ -98,6 +96,8 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
   def create(schema: String) = Action(parse.json) { request =>
 
     val reqBody = request.body
+
+    // CONSIDER After Everything Else Is Done- validating schema itself from json-schema.org specifications
      if (schema.equalsIgnoreCase("schema")) {
        (reqBody \ "title" ).validate[String] asOpt match {
          case Some(title) =>
@@ -119,13 +119,7 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
                validJson match {
                  case q:JsObject =>
                    // if id is not found, create a new UUID
-                   val id:String =  q.value.get("id") match {
-                     case Some(j:JsString) => j.value match {
-                       case x:String if x.length >= 32 => x
-                       case _ => UUID.randomUUID().toString
-                     }
-                     case _ => UUID.randomUUID().toString
-                   }
+                   val id: String = addIdToStructure(q)
                    val g: String = s"${(q.value("schema").as[JsString]).value}_$id"
                    val dataMap = mutable.Map.empty[String, JsValue]
                    dataMap ++= q.value
@@ -142,6 +136,17 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
      }
   }
 
+
+  def addIdToStructure(q: JsObject): String = {
+    val id: String = q.value.get("id") match {
+      case Some(j: JsString) => j.value match {
+        case x: String if x.length >= 32 => x
+        case _ => UUID.randomUUID().toString
+      }
+      case _ => UUID.randomUUID().toString
+    }
+    id
+  }
 
   // This function allows PATCH semantics on all content schema types
   // Not allowing merge on Schema objects since there is no validation on Schema objects. Rather use PUT semantics for that.
@@ -198,9 +203,9 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
 
 
   // Recursively find Object types and use the latest value for scalar items (Strings)
-
   // TODO 1 - enforce id for object updates
   // TODO 2 - complete for arrays of objects
+  // CONSIDER - implementing using the approach of two maps - 1 for objects and 1 more for relationships
   def merge(newVal: JsValue, oldVal: JsValue) : JsValue = newVal match {
     case g:JsString => g
     case qNew:JsObject => oldVal match {
@@ -213,8 +218,31 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
         JsObject(mMerged)
       case _ => qNew
     }
-    case qArrNew:JsArray => ??? // uncommon + merged common
+    case qArrNew:JsArray =>
+      oldVal match {
+        case qArrOld:JsArray =>
+          qArrNew.value.head match {
+            case x:JsObject =>
+              val matchedObjects: Seq[(JsObject, JsObject)] = findCommonById(qArrNew, qArrOld)
+              val uncommonNew = qArrNew.value.diff(matchedObjects.map(pair => pair._1))
+              val uncommonOld = qArrOld.value.diff(matchedObjects.map(pair => pair._2))
+              JsArray(uncommonNew ++ uncommonOld ++ matchedObjects.map(pair => merge(pair._1, pair._2)))
+            case _ => qArrNew
+        }
+        case _ => qArrNew
+      }
     case _ => newVal  // TODO - test what could come here and see if it needs to shout an error
+  }
+
+  def findCommonById(qArrNew: JsArray, qArrOld: JsArray): Seq[(JsObject, JsObject)] = {
+    val matchedObjects: Seq[(JsObject, JsObject)] = for (
+      n <- qArrNew.value;
+      o <- qArrOld.value;
+      nObj <- n.asOpt[JsObject];
+      oObj <- o.asOpt[JsObject];
+      if nObj \ "id" == oObj \ "id"
+    ) yield (nObj, oObj)
+    matchedObjects
   }
 
   def index = Action {
