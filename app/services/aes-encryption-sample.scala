@@ -45,5 +45,5 @@ object Encryption {
   }
 
   private val SALT: String =
-    "jMhKlOuJnM34G6NHkqo9V010GhLAqOpF0BePojHgh1HgNg8^72k"
+    "dffc03db-021e-4f7d-af19-9a0d8c9f395a"
 }
