@@ -1,49 +1,7 @@
-This is your new Play application
-=================================
+This repository is dedicated to project work for the Course - Advances in Big Data Architecture - at Northeastern University. The project involves writing a REST service for Health Insurance Information exchange - that employs json-schema for strongly-typed data exchange protocol. Etag and If-None-Match are used for enforcing efficient caching. Bearer Token based security features are implemented to ensure authentication and authorization.
 
-This file will be packaged with your application when using `activator dist`.
+The technologies used are:
 
-There are several demonstration files available in this template.
-
-Controllers
-===========
-
-- HomeController.scala:
-
-  Shows how to handle simple HTTP requests.
-
-- AsyncController.scala:
-
-  Shows how to do asynchronous programming when handling a request.
-
-- CountController.scala:
-
-  Shows how to inject a component into a controller and use the component when
-  handling requests.
-
-Components
-==========
-
-- Module.scala:
-
-  Shows how to use Guice to bind all the components needed by your application.
-
-- Counter.scala:
-
-  An example of a component that contains state, in this case a simple counter.
-
-- ApplicationTimer.scala:
-
-  An example of a component that starts when the application starts and stops
-  when the application stops.
-
-Filters
-=======
-
-- Filters.scala:
-
-  Creates the list of HTTP filters used by your application.
-
-- ExampleFilter.scala
-
-  A simple filter that adds a header to every response.
+Scala - programming language
+Play - application framework
+Redis - database
