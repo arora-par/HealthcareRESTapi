@@ -1,4 +1,10 @@
-This repository is dedicated to project work for the Course - Advances in Big Data Architecture - at Northeastern University. The project involves writing a REST service for Health Insurance Information exchange - that employs json-schema for strongly-typed data exchange protocol. Etag and If-None-Match are used for enforcing efficient caching. Bearer Token based security features are implemented to ensure authentication and authorization.
+This repository is dedicated to project work for the Course - Advances in Big Data Architecture - at Northeastern University. 
+
+The project involves writing a REST service for Health Insurance Information exchange - that employs json-schema for strongly-typed data exchange protocol.
+
+Etag and If-None-Match are used for enforcing efficient caching. 
+
+Bearer Token based security features are implemented to ensure authentication and authorization.
 
 The technologies used are:
 
