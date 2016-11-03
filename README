@@ -17,3 +17,4 @@ To run this project locally:
 1. Make sure Redis is running locally: redis-server
 2. Make sure activator/sbt is installed locally.
 3. Command to run application: activator run
+4. Look at routes file for the list of available HTTP verbs and URLs
