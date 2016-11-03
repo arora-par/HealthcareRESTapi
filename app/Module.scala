@@ -1,10 +1,9 @@
-import com.google.inject.{AbstractModule, Provides}
 import java.time.Clock
 
 import com.eclipsesource.schema.SchemaValidator
+import com.google.inject.{AbstractModule, Provides}
 import com.redis.RedisClient
 import services.{ApplicationTimer, AtomicCounter, Counter}
-
 /**
  * This class is a Guice module that tells Guice how to bind several
  * different types. This Guice module is created when the Play
@@ -29,6 +28,8 @@ class Module extends AbstractModule {
 
   @Provides
   def provideRedisClient(): RedisClient = {
+    //val redisHost:String = Play.configuration.getString("redisHost").get
+    //val redisPort:Int = Play.configuration.getInt("redisPort").get
     val redis = new RedisClient("localhost", 6379)
     return redis;
   }

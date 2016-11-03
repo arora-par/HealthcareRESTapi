@@ -42,22 +42,6 @@ import scala.collection.mutable
 @Singleton
 class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: SchemaValidator) extends Controller {
 
-  //val validator = new SchemaValidator()
-
-  def getAllPlans = Action {
-    val planKeys = redis.keys("plan_*")
-    planKeys match {
-      case None => NoContent
-      case Some(gos) => gos.isEmpty match {
-        case true => NoContent
-        case false => Ok {
-          val gos1 = for (go <- gos; g <- go) yield redis.get (g)
-          val qs = for (go1 <- gos1; g1 <- go1) yield Json.parse (g1)
-          JsArray (qs)
-        }
-      }
-    }
-  }
 
   // This function allows GET semantics on all content schema types, including the schema themselves
   def get(schema:String, id: String) = Action { request =>
@@ -70,7 +54,7 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
 
     val jsonData = redis.get(s"${schema}_$id")
     jsonData match {
-      case None => NoContent
+      case None => NotFound
       case Some(g) =>
 
         val etag: String = cache.getOrElse[String](s"etag_${schema}_$id") {
@@ -86,6 +70,15 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
           case Some(g1) if g1 == etag => NotModified
           case _ => Ok(g).withHeaders(ETAG -> etag)
         }
+    }
+  }
+
+  // This function allows DELETE semantics on all content schema types, including the schema themselves
+  def delete(schema:String, id: String) = Action { request =>
+    val delCount = redis.del(s"${schema}_$id")
+    delCount match {
+      case None => NotFound
+      case Some(l) => Ok(s"$l record(s) deleted")
     }
   }
 
@@ -126,6 +119,7 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
                    redis.set(g, JsObject(dataMap).toString()) match {
                      case false => FailedDependency
                      case _ => Created(id)
+
                    }
                  case _ => BadRequest("String could not be parsed as a Json Object")
                }
@@ -163,7 +157,8 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
                   val g: String = s"${(q.value("schema").as[JsString]).value}_$id"
                   redis.set(g, JsObject(q.value).toString()) match {
                     case false => FailedDependency
-                    case _ => Created(id)
+                    case _ => Ok(id)
+                    // CONSIDER - returning 200 for update, 201 for new creation
                   }
                 case _ => BadRequest("String could not be parsed as a Json Object")
               }
