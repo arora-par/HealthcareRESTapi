@@ -11,3 +11,9 @@ The technologies used are:
 Scala - programming language
 Play - application framework
 Redis - database
+
+To run this project locally:
+
+1. Make sure Redis is running locally: redis-server
+2. Make sure activator/sbt is installed locally.
+3. Command to run application: activator run
