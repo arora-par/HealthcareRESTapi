@@ -26,7 +26,7 @@ import scala.collection.mutable
 
 // DONE - TODO - 3. If you do not return the UUID on a post, you need to change your implementation to do just that.
 
-//TODO - 4. The way to uniquely identify an object is through the use of _id or id and not using planId. The latter won't scale when your system needs to support multiple or many objects.
+// DONE - TODO - 4. The way to uniquely identify an object is through the use of _id or id and not using planId. The latter won't scale when your system needs to support multiple or many objects.
 // All nested objects must also have an id.
 
 // Done - TODO - 5. If you have not demonstrated the use of the Etag or if match headers, you should also do that
@@ -35,15 +35,14 @@ import scala.collection.mutable
 
 // TODO - 7. Security - Bearer Token - user, organization, role, Time to Live,
 
-// TODO -   implement dependency injection. move Redis interaction to dependency.
+// Done TODO -   implement dependency injection. move Redis interaction to dependency.
 // TODO -  configure db url via configuration file
 
 
 @Singleton
-class HomeController @Inject() (cache: CacheApi) extends Controller {
+class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: SchemaValidator) extends Controller {
 
-  val validator = new SchemaValidator()
-  val redis = new RedisClient("localhost", 6379)
+  //val validator = new SchemaValidator()
 
   def getAllPlans = Action {
     val planKeys = redis.keys("plan_*")
@@ -134,6 +133,44 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
            )
        }
      }
+  }
+
+
+  // This function allows PUT semantics on all content schema types, including the schema themselves
+  def put(schema: String, id: String) = Action(parse.json) { request =>
+
+    val reqBody = request.body
+    if (schema.equalsIgnoreCase("schema")) {
+      (reqBody \ "title" ).validate[String] asOpt match {
+        case Some(title) =>
+          redis.set(s"schema_${title}", reqBody.toString()) match {
+            case false => FailedDependency
+            case _ => Created(s"schema_${title.toString()}")
+          }
+        case _ => BadRequest("Title not found in Schema")
+      }
+    } else {
+      val jo = redis.get(s"schema_$schema")
+      jo match {
+        case None => BadRequest("Schema not found")
+        case Some(j) =>
+          val schemaType = Json.fromJson[SchemaType](Json.parse(j)).get
+          validator.validate(schemaType, reqBody).fold(
+            invalid = { errors =>  BadRequest(errors.toString())},
+            valid = { validJson =>
+              validJson match {
+                case q:JsObject =>
+                  val g: String = s"${(q.value("schema").as[JsString]).value}_$id"
+                  redis.set(g, JsObject(q.value).toString()) match {
+                    case false => FailedDependency
+                    case _ => Created(id)
+                  }
+                case _ => BadRequest("String could not be parsed as a Json Object")
+              }
+            }
+          )
+      }
+    }
   }
 
 
@@ -248,34 +285,4 @@ class HomeController @Inject() (cache: CacheApi) extends Controller {
   def index = Action {
     Ok(views.html.index("Your new application is ready."))
   }
-
-
-  val schemaForPlan = Json.fromJson[SchemaType](Json.parse(
-    """{
-      |"$schemaForPlan": "http://json-schema.org/draft-04/schema#",
-      |  "title": "plan",
-      | "description": "A plan object encapsulates cost and benefits of the health plan",
-      | "type": "object",
-      |"properties": {
-      |   "id" : { "type": "string" },
-      |   "schema" : { "type": "string" },
-      |  "planCategory": { "type": "string" },
-      |  "planShortName": { "type": "string" },
-      |  "parentsCovered":  { "type": "boolean" },
-      |  "planCost" : {"type": "object", "properties" : {
-      |                                     "copay": {"type":"number"},
-      |                                     "premium": {"type":"number"}
-      |                                }
-      |             },
-      |  "servicesSupported": { "type": "array", "items" :{"type":"string"}
-      |               }
-      |},
-      |    "required": [
-      |      "planCategory",
-      |      "planShortName",
-      |      "parentsCovered",
-      |      "schema",
-      |      "planCost"
-      |    ]
-    }""".stripMargin)).get
 }

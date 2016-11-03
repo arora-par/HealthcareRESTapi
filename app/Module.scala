@@ -1,6 +1,8 @@
-import com.google.inject.AbstractModule
+import com.google.inject.{AbstractModule, Provides}
 import java.time.Clock
 
+import com.eclipsesource.schema.SchemaValidator
+import com.redis.RedisClient
 import services.{ApplicationTimer, AtomicCounter, Counter}
 
 /**
@@ -23,6 +25,18 @@ class Module extends AbstractModule {
     bind(classOf[ApplicationTimer]).asEagerSingleton()
     // Set AtomicCounter as the implementation for Counter.
     bind(classOf[Counter]).to(classOf[AtomicCounter])
+  }
+
+  @Provides
+  def provideRedisClient(): RedisClient = {
+    val redis = new RedisClient("localhost", 6379)
+    return redis;
+  }
+
+  @Provides
+  def provideSchemaValidator(): SchemaValidator = {
+    val validator = new SchemaValidator()
+    return validator;
   }
 
 }

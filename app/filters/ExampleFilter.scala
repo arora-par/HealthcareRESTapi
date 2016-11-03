@@ -30,7 +30,7 @@ class ExampleFilter @Inject()(
     // and eventually call the action. Take the result and modify it
     // by adding a new header.
 
-    val key = "Advances In Big Data Architecture"
+    val key = "My very own, very private key here!"
     requestHeader.headers.toSimpleMap.get("Authorization") match {
       case Some(g) =>
         val token = g.stripPrefix("Bearer ")
