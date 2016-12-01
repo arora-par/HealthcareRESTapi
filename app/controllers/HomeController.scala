@@ -12,32 +12,7 @@ import play.api.mvc._
 
 import scala.collection.mutable
 
-/**
- * This controller creates an `Action` to handle HTTP requests to the
- * application's home page.
- */
-
-//TODO - 1. The Supported Operations Should Include get, post , put, merge, and (cascaded) delete.
-
-// DONE  - TODO - 2 .If you have implemented the crud operations by specifying different URIs for post, get, put, patch, and delete then you also need to rework the URI signatures. The URI signature should be of the following forms:
-///{plans}
-///{plans}/{id}
-//Note how we do not hardcode the type of the object
-
-// DONE - TODO - 3. If you do not return the UUID on a post, you need to change your implementation to do just that.
-
-// DONE - TODO - 4. The way to uniquely identify an object is through the use of _id or id and not using planId. The latter won't scale when your system needs to support multiple or many objects.
-// All nested objects must also have an id.
-
-// Done - TODO - 5. If you have not demonstrated the use of the Etag or if match headers, you should also do that
-
-// Done - TODO - 6. Ideally, the schema should not be read from the file system but rather from the data store
-
-// TODO - 7. Security - Bearer Token - user, organization, role, Time to Live,
-
-// Done TODO -   implement dependency injection. move Redis interaction to dependency.
 // TODO -  configure db url via configuration file
-
 
 @Singleton
 class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: SchemaValidator) extends Controller {
@@ -84,7 +59,6 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
 
 
   // This function allows POST semantics on all content schema types, including the schema themselves
-  // CONSIDER - moving schema creation to another method, say createSchema to neat separation for authurization later on.
   def create(schema: String) = Action(parse.json) { request =>
 
     val reqBody = request.body
@@ -116,9 +90,12 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
                    val dataMap = mutable.Map.empty[String, JsValue]
                    dataMap ++= q.value
                    dataMap.put("id", JsString(id))
-                   redis.set(g, JsObject(dataMap).toString()) match {
+                   val jsonStr = JsObject(dataMap).toString()
+                   redis.set(g, jsonStr) match {
                      case false => FailedDependency
-                     case _ => Created(id)
+                     case _ =>
+                       pushToIndexer(jsonStr)
+                       Created(id)
 
                    }
                  case _ => BadRequest("String could not be parsed as a Json Object")
@@ -129,6 +106,8 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
      }
   }
 
+
+  def pushToIndexer(jsonString: String) = redis.lpush("indexer", jsonString)
 
   // This function allows PUT semantics on all content schema types, including the schema themselves
   def put(schema: String, id: String) = Action(parse.json) { request =>
@@ -155,9 +134,12 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
               validJson match {
                 case q:JsObject =>
                   val g: String = s"${(q.value("schema").as[JsString]).value}_$id"
-                  redis.set(g, JsObject(q.value).toString()) match {
+                  val jsonString = JsObject(q.value).toString()
+                  redis.set(g, jsonString) match {
                     case false => FailedDependency
-                    case _ => Ok(id)
+                    case _ =>
+                      pushToIndexer(jsonString)
+                      Ok(id)
                     // CONSIDER - returning 200 for update, 201 for new creation
                   }
                 case _ => BadRequest("String could not be parsed as a Json Object")
@@ -218,6 +200,7 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
                                     val keyBytes = sha.digest(g.toCharArray.map(_.toByte))
                                     val etagStr = keyBytes.toString()
                                     cache.set(s"etag_${schema}_${s1.value}", etagStr)
+                                    pushToIndexer(validJson.toString())
                                     Ok("merge/patch successful").withHeaders(ETAG -> etagStr)
                                 }
                               case _ => FailedDependency("Merged map could not be parsed as a Json Object")
@@ -235,8 +218,6 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
 
 
   // Recursively find Object types and use the latest value for scalar items (Strings)
-  // TODO 1 - enforce id for object updates
-  // TODO 2 - complete for arrays of objects
   // CONSIDER - implementing using the approach of two maps - 1 for objects and 1 more for relationships
   def merge(newVal: JsValue, oldVal: JsValue) : JsValue = newVal match {
     case g:JsString => g

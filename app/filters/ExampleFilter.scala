@@ -1,9 +1,11 @@
 package filters
 
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject._
 
 import akka.stream.Materializer
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsDefined, JsObject, JsString, Json}
 import play.api.mvc.Results._
 import play.api.mvc._
 import services.Encryption
@@ -31,6 +33,7 @@ class ExampleFilter @Inject()(
     // by adding a new header.
 
     val key = "My very own, very private key here!"
+
     requestHeader.headers.toSimpleMap.get("Authorization") match {
       case Some(g) =>
         val token = g.stripPrefix("Bearer ")
@@ -42,21 +45,33 @@ class ExampleFilter @Inject()(
               println(s"userName: ${q \ "userName"}")
               println(s"role: ${q \ "role"}")
               println(s"organization: ${q \ "organization"}")
-              // TODO - Organization and role based access validation here
-              nextFilter(requestHeader).map { result =>
-                result
+              println(s"ttl: ${q \ "ttl"}")
+              // CONSIDER setting up role based access rules
+              // validate 'time to live' on the token
+              q \ "ttl" match {
+                case JsDefined(x) =>
+                  val ttlStr = x.as[JsString] value
+                  val isoInstant = LocalDate.parse(ttlStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                  if(isoInstant.isAfter(LocalDate.now())) {
+                    println(s"valid ttl on token: $isoInstant")
+                    nextFilter(requestHeader).map { result =>
+                      result
+                    }
+                  } else {
+                    Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="healthcare",error="invalid_token",error_description="expired ttl""""))
+                  }
+                case _ => Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="healthcare",error="invalid_token",error_description="missing ttl""""))
               }
-            case _ =>
-              Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="example",error="invalid_token""""))
+            case _ => Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="healthcare",error="invalid_token""""))
           }
         }
         catch
           {
             case e: Throwable => println(s"Got exception while decrypting: ${e.getMessage}")
-              Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="example",error="invalid_token""""))
+              Future(Unauthorized.withHeaders("WWW-Authenticate" -> """Bearer realm="healthcare",error="invalid_token""""))
           }
       case None =>
-          Future(BadRequest.withHeaders("WWW-Authenticate" -> """Bearer realm="example",error="invalid_request",error_description="missing Authorization header""""))
+          Future(BadRequest.withHeaders("WWW-Authenticate" -> """Bearer realm="healthcare",error="invalid_request",error_description="missing Authorization header""""))
     }
   }
 }
