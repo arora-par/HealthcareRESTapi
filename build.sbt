@@ -11,7 +11,8 @@ resolvers += "emueller-bintray" at "http://dl.bintray.com/emueller/maven"
 libraryDependencies ++= Seq(
   "net.debasishg" %% "redisclient" % "3.2",
   "com.eclipsesource" %% "play-json-schema-validator" % "0.8.5",
-    jdbc,
+  jdbc,
+  filters,
   cache,
   ws,
   "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.1" % Test

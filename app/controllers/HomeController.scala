@@ -17,6 +17,17 @@ import scala.collection.mutable
 @Singleton
 class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: SchemaValidator) extends Controller {
 
+  def headers = List(
+    "Access-Control-Allow-Origin" -> "*",
+    "Access-Control-Allow-Methods" -> "GET, POST, OPTIONS, DELETE, PUT",
+    "Access-Control-Max-Age" -> "3600",
+    "Access-Control-Allow-Headers" -> "Origin, Content-Type, Accept, Authorization",
+    "Access-Control-Allow-Credentials" -> "true"
+  )
+
+  def options(schema:String, id: String)  = Action { request =>
+    NoContent.withHeaders(headers : _*)
+  }
 
   // This function allows GET semantics on all content schema types, including the schema themselves
   def get(schema:String, id: String) = Action { request =>
@@ -43,7 +54,7 @@ class HomeController @Inject() (cache: CacheApi, redis: RedisClient, validator: 
         }
         request.headers.toSimpleMap.get("If-None-Match") match {
           case Some(g1) if g1 == etag => NotModified
-          case _ => Ok(g).withHeaders(ETAG -> etag)
+          case _ => Ok(g).withHeaders(ETAG -> etag, ACCESS_CONTROL_ALLOW_ORIGIN -> "*")
         }
     }
   }

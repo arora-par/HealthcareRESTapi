@@ -28,7 +28,7 @@ class Module extends AbstractModule {
 
   @Provides
   def provideRedisClient(): RedisClient = {
-    //val redisHost:String = Play.configuration.getString("redisHost").get
+    //val redisHost:String = play.Play.application.configuration.getString("redisHost")
     //val redisPort:Int = Play.configuration.getInt("redisPort").get
     val redis = new RedisClient("localhost", 6379)
     return redis;

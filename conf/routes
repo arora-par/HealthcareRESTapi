@@ -12,8 +12,11 @@ GET     /message                    controllers.AsyncController.message
 # Map static resources from the /public folder to the /assets URL path
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
 
-DELETE      /:schema/:id                   controllers.HomeController.delete(schema:String, id: String)
-GET         /:schema/:id                   controllers.HomeController.get(schema:String, id: String)
-PUT         /:schema/:id                   controllers.HomeController.put(schema:String, id: String)
-POST        /:schema                       controllers.HomeController.create(schema: String)
-PATCH       /:schema                       controllers.HomeController.mergeUpdate(schema: String)
+
+OPTIONS     /:schema/:id                   controllers.HomeController.options(schema:String, id: String)
+
+DELETE      /:schema/:id                    controllers.HomeController.delete(schema:String, id: String)
+GET         /:schema/:id                    controllers.HomeController.get(schema:String, id: String)
+PUT         /:schema/:id                    controllers.HomeController.put(schema:String, id: String)
+POST        /:schema                        controllers.HomeController.create(schema: String)
+PATCH       /:schema                        controllers.HomeController.mergeUpdate(schema: String)
